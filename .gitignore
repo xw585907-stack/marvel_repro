@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# 训练产物与运行临时文件
+runs/
+logs/
+*.pt
+*.pth
+
+# IDE
+.idea/
+.vscode/
