@@ -118,18 +118,28 @@ SRB-MPC 完整框架与约束、步态与力分配行为、控制频率与实时
 ```
 marvel_repro/
 ├── envs/          # 物理内核：动力学/接触/EPM/向量化环境（numpy 向量化）
-├── control/       # 论文1：步态调度、SRB-MPC（coneqp+精修）、摆动腿轨迹、IK
+├── stage3_mpc/    # 论文1：SRB-MPC、步态、测试、演示和阶段报告
 ├── render/        # pygame 渲染器（旋转视角，仅可视化）
 ├── analysis/      # 阶段1 图表（Fig.4F 可容许区域 / Fig.3 气隙曲线）
-├── scripts/       # test_env.py(12项) / test_mpc.py(17项) / debug_mpc.py
-│                  # run_mpc.py(交互演示) / sim_demo.py / 诊断探针若干
-└── docs/          # stage_report_0-2.md / stage_report_3.md / dev_log.md
+├── stage4_rl/     # 论文2：PPO、课程、训练、评估、演示和阶段报告
+├── scripts/       # 阶段2 test_env.py / sim_demo.py / debug_wall.py
+└── docs/          # 汇总报告与开发日志
 ```
 
 ## 7. 后续计划
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
-| 4 | 论文2 PPO 控制器：actor/critic [256,128,64] + estimator、Table I 奖励、三阶段课程、域随机化 | 待开始 |
+| 4 | 论文2 PPO 控制器：actor/critic [256,128,64] + estimator、Table I 奖励、三阶段课程、域随机化 | 实现完成，正式训练待运行 |
 | 5 | 对比与消融：论文2 Table II（Full / w/o Curriculum / w/o Probabilistic / w/o Modeling）+ MPC vs RL 吸附失效对比（Fig.5），5 项指标 | 待开始 |
 | 6 | 汇总本文档的最终版 | 进行中 |
+
+## 8. 阶段4当前成果
+
+已完成论文2的二维 PPO 工程复现：Actor/Critic [256,128,64]、Estimator
+[256,128]、8维步态时钟、alpha=0.35 低通滤波、Table I 奖励、三阶段重力课程、
+Prob_attach 1.0→0.85、域随机化、训练/评估/可视化脚本。
+
+阶段四接口测试 10/10 通过，40 次压缩训练覆盖全部课程阶段。短训练权重未收敛，
+因此目前只能说明工程链路完成；论文性能结论必须使用默认 35000 次正式训练后再写。
+详细结果见 stage4_rl/docs/stage_report_4.md。

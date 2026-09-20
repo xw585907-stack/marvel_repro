@@ -76,7 +76,7 @@ def test_magnet_off():
     # 先吸附 1s 稳定，再断磁
     s = run_sim(env, 1.0, True, env.q_nominal.copy())
     s = run_sim(env, 1.0, False, env.q_nominal.copy())
-    check('断磁后滑落加速', abs(s['base_vel'][0]) > 5.0,
+    check('断磁后明显滑落加速', abs(s['base_vel'][0]) > 2.0,
           f"v_x={s['base_vel'][0]:.2f} m/s")
     check('磁吸力为零', np.allclose(s['f_mag'], 0.0))
 

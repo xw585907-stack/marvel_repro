@@ -5,3 +5,4 @@ cvxopt
 pygame>=2.6
 # torch 仅阶段4（PPO）需要，CPU 版：
 # pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch==2.5.1

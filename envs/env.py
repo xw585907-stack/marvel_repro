@@ -24,7 +24,7 @@ import numpy as np
 from .robot import RobotParams, foot_pos_body, foot_jac, NUM_LEGS, NUM_JOINTS
 from .contact import ContactModel
 from .magnet import magnet_force, roll_attach
-from control.ik import two_link_ik
+from .ik import two_link_ik
 
 G = 9.81
 
@@ -111,6 +111,7 @@ class ClimbEnv:
                        / self.contact_model.k_n)
         self.p[:, 1] = -foot_b[:, :, 1].min(axis=1) - pen
         self.qd = np.zeros((N, NUM_JOINTS))
+        self.last_joint_tau = np.zeros((N, NUM_JOINTS))
         self.time = np.zeros(N)
         self.terminated = np.zeros(N, dtype=bool)
 
@@ -128,6 +129,43 @@ class ClimbEnv:
         # 若不初始化锚点，切向弹簧初始拉伸 165mm → 33kN 瞬态 → 俯仰振荡发散
         foot_w, _ = self._foot_state()
         self.contact_model.anchor[...] = foot_w
+
+    def reset_indices(self, indices):
+        """仅复位指定并行环境，供 PPO 的异步 episode 管理使用。"""
+        idx = np.asarray(indices)
+        if idx.dtype == bool:
+            idx = np.flatnonzero(idx)
+        idx = idx.astype(int, copy=False).ravel()
+        if idx.size == 0:
+            return self.get_obs()
+
+        self.p[idx] = 0.0
+        self.v[idx] = 0.0
+        self.phi[idx] = 0.0
+        self.omega[idx] = 0.0
+        self.q[idx] = self.q_nominal[idx]
+        self.qd[idx] = 0.0
+        self.last_joint_tau[idx] = 0.0
+        self.time[idx] = 0.0
+        self.terminated[idx] = False
+
+        foot_b, _ = self._fk()
+        g_n = G * np.cos(self.gravity_theta[idx])
+        pen = ((self.f_max[idx] + self.mass[idx] * g_n / 4.0)
+               / self.contact_model.k_n)
+        self.p[idx, 1] = -foot_b[idx, :, 1].min(axis=1) - pen
+
+        self.contact[idx] = False
+        self.prev_contact[idx] = False
+        self.attach_ok[idx] = False
+        self.magnet_on[idx] = False
+        self.f_mag[idx] = self.f_max[idx, None]
+        self.F_env[idx] = 0.0
+        self.gap[idx] = 0.0
+
+        foot_w, _ = self._foot_state()
+        self.contact_model.anchor[idx] = foot_w[idx]
+        return self.get_obs()
 
     def set_gravity_theta(self, theta):
         """设置重力倾角 [rad]（0=平地，π/2=垂直墙）。"""
@@ -310,6 +348,7 @@ class ClimbEnv:
             tau_pd = tau_pd + self.kd[:, None] * qd_des
         tau = np.clip(torque_cmd + tau_pd,
                       -self.tau_peak[:, None], self.tau_peak[:, None])
+        self.last_joint_tau = tau.copy()
         J = foot_jac(self.q, self.l1, self.l2)          # (N,4,2,2) 体坐标
         c, s = np.cos(self.phi), np.sin(self.phi)
         R = np.stack([np.stack([c, s], -1), np.stack([-s, c], -1)], -1)
@@ -357,6 +396,7 @@ class ClimbEnv:
             'base_omega': self.omega,    # (N,)
             'q': self.q,                 # (N,8)
             'qd': self.qd,               # (N,8)
+            'joint_tau': self.last_joint_tau,  # (N,8) 执行器实际力矩
             'foot_pos': foot_w,          # (N,4,2) 世界坐标
             'foot_vel': foot_v,          # (N,4,2)
             'contact': self.contact,     # (N,4)
