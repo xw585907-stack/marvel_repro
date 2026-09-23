@@ -41,10 +41,11 @@ def main():
         for step in range(env.max_episode_steps):
             action, _, _, _, estimate = trainer.act(
                 to_tensor(env.proprio), to_tensor(env.critic_obs), True)
-            _, _, _, _, done, _ = env.step(action.numpy(), estimate.numpy())
-            errors.append((env.env.v[0, 0] - args.command) ** 2)
-            phase = env._phase_masks()[1][0]
-            retained += int(np.sum(phase & (env.env.f_mag[0] > 1.0)))
+            _, _, _, _, done, info = env.step(action.numpy(), estimate.numpy())
+            metrics = info['transition_metrics']
+            errors.append((metrics['velocity'][0] - args.command) ** 2)
+            phase = metrics['stance'][0]
+            retained += int(np.sum(phase & (metrics['magnetic_force'][0] > 1.0)))
             stance_count += int(np.sum(phase))
             if done[0]:
                 break
@@ -52,7 +53,8 @@ def main():
         durations.append(duration)
         rmses.append(float(np.sqrt(np.mean(errors))))
         retention.append(retained / max(stance_count, 1))
-        successes.append(duration >= cfg.episode_seconds - 1e-9)
+        successes.append(duration >= cfg.episode_seconds - 1e-9
+                         and not metrics['physical_failure'][0])
 
     print(f'episodes={args.episodes} p_attach={args.prob_attach:.2f}')
     print(f'速度 RMSE: {np.mean(rmses):.4f} +/- {np.std(rmses):.4f} m/s')

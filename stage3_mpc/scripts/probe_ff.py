@@ -28,7 +28,7 @@ def main():
         R = np.array([[c, -s], [s, c]])
         J = foot_jac(snap['q'], env.l1, env.l2)
         J_w = np.einsum('ij,fjk->fik', R, J)
-        tau = -np.einsum('fij,fj->fi', J_w, u_cmd).ravel()
+        tau = -np.einsum('fij,fi->fj', J_w, u_cmd).ravel()
         if q_des is None:
             q_des = np.zeros(8)
         env.step(tau[None, :], np.ones((1, 4)), q_des[None, :],

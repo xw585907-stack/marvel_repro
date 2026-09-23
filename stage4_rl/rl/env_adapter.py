@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from envs.env import ClimbEnv
+from envs.ik import two_link_ik
 from envs.robot import RobotParams
 from .curriculum import ClimbingCurriculum
 
@@ -18,6 +19,8 @@ class RLEnvConfig:
     command_min: float = -0.5
     command_max: float = 0.5
     standing_probability: float = 0.1
+    gait_prior: bool = False
+    residual_action_scale: float = 0.25
     domain_randomization: bool = True
     observation_noise: bool = True
     curriculum_scale: float = 1.0
@@ -76,6 +79,10 @@ class VectorClimbRLEnv:
 
     def set_command(self, command):
         self.command[...] = np.asarray(command, dtype=float)
+        # 指令不经过传感器滤波；在下一次策略调用前立即更新缓存观测。
+        self.filtered_proprio[:, -1] = self.command / 0.5
+        self.proprio[:, -1] = self.command / 0.5
+        self.critic_obs[:, self.proprio_dim - 1] = self.command / 0.5
 
     def _sample_commands(self, idx):
         n = len(idx)
@@ -84,6 +91,24 @@ class VectorClimbRLEnv:
         stand = self.rng.random(n) < self.cfg.standing_probability
         cmd[stand] = 0.0
         self.command[idx] = cmd
+
+    def _gait_prior_action(self):
+        phase = np.mod(self.env.time[:, None] / self.cfg.gait_period
+                       + 0.25 * np.arange(4)[None, :], 1.0)
+        swing = phase < 0.25
+        progress = np.where(swing, phase / 0.25, (phase - 0.25) / 0.75)
+        stride = np.abs(self.command[:, None]) * self.cfg.gait_period * 0.75
+        x = np.where(swing, -stride / 2 + stride * progress,
+                     stride / 2 - stride * progress) * np.sign(self.command[:, None])
+        z = -0.15 + np.where(swing, 0.08 * np.sin(np.pi * progress), 0.0)
+        q_des = two_link_ik(np.stack([x, z], axis=-1)).reshape(self.num_envs, 8)
+        joints = np.clip((q_des - self.q_nominal) / self.cfg.joint_action_scale,
+                         -1.0, 1.0)
+        magnets = np.where(swing, -0.8, 0.8)
+        standing = np.abs(self.command) < 0.03
+        joints[standing] = 0.0
+        magnets[standing] = 0.8
+        return np.concatenate([joints, magnets], axis=1)
 
     def _randomize(self, idx):
         n = len(idx)
@@ -231,6 +256,7 @@ class VectorClimbRLEnv:
             (~contact) * (desired_h - obs['foot_pos'][..., 1]) ** 2
             * np.sqrt(np.abs(foot_v[..., 1]) + 1e-6), axis=1)
         p_orient = 3.0 * np.abs(obs['base_phi'])
+        # 二维虚拟关节量纲映射：各项先按持续力矩、典型速度和典型加速度归一化。
         p_tau = penalty_scale * 0.003 * np.sum(
             (obs['joint_tau'] / 30.0) ** 2, axis=1)
         alpha_jp = np.where(standing, 3.0, 0.75)
@@ -261,28 +287,31 @@ class VectorClimbRLEnv:
             'velocity': float(np.mean(r_lv)),
             'gait': float(np.mean(r_gait)),
             'penalty': float(np.mean(penalty)),
+            'torque_penalty': float(np.mean(p_tau)),
+            'joint_speed_penalty': float(np.mean(p_joint_speed)),
+            'joint_acceleration_penalty': float(np.mean(p_joint_acc)),
+            'action_smoothness_penalty': float(np.mean(p_smooth1 + p_smooth2)),
             'magnet': float(np.mean(p_magnet)),
         }
         return reward.astype(np.float32)
 
     def step(self, action, contact_estimate=None):
-        action = np.asarray(action, dtype=float).reshape(
+        policy_action = np.asarray(action, dtype=float).reshape(
             self.num_envs, self.action_dim)
-        action = np.clip(action, -1.0, 1.0)
+        policy_action = np.clip(policy_action, -1.0, 1.0)
+        action = (np.clip(self._gait_prior_action()
+                          + self.cfg.residual_action_scale * policy_action, -1.0, 1.0)
+                  if self.cfg.gait_prior else policy_action)
         delay = (self.action_delay / self.env.control_dt)[:, None]
         executed = (1.0 - delay) * action + delay * self.prev_exec_action
         joint_action = executed[:, :8]
         magnet_action = 0.5 * (executed[:, 8:] + 1.0)
 
         q_des = self.q_nominal + self.cfg.joint_action_scale * joint_action
-        if contact_estimate is None:
-            contact_conf = self.env.contact.astype(float)
-        else:
-            estimate = np.asarray(contact_estimate, dtype=float).reshape(
-                self.num_envs, self.privileged_dim)
-            contact_conf = np.clip(estimate[:, 6:10], 0.0, 1.0)
-        magnet_cmd = ((magnet_action >= 0.5)
-                      & (contact_conf >= 0.5)).astype(float)
+        # 磁铁是策略直接控制的执行器。接触估计器只补充本体感知；若用它
+        # 阻断磁铁命令，会形成“尚未估计接触 -> 无法吸附 -> 永远无接触”的
+        # 自锁，尤其会让墙面复位立即坠落。
+        magnet_cmd = (magnet_action >= 0.5).astype(float)
         if not self.curriculum_state.adhesion_enabled:
             magnet_cmd[:] = 0.0
 
@@ -292,11 +321,11 @@ class VectorClimbRLEnv:
         qdd = (obs['qd'] - self.prev_qd) / self.env.control_dt
         reward = self._reward(obs, action, magnet_action, qdd)
 
-        done = (obs['terminated'].copy()
-                | (obs['base_pos'][:, 1] < 0.03)
-                | (obs['base_pos'][:, 1] > 0.35)
-                | (self.episode_steps >= self.max_episode_steps))
-        reward = reward - 2.0 * obs['terminated'].astype(np.float32)
+        physical_failure = (obs['terminated'].copy()
+                            | (obs['base_pos'][:, 1] < 0.03)
+                            | (obs['base_pos'][:, 1] > 0.35))
+        done = physical_failure | (self.episode_steps >= self.max_episode_steps)
+        reward = reward - 2.0 * physical_failure.astype(np.float32)
         self.episode_return += reward
         completed_returns = self.episode_return[done].copy()
         completed_lengths = self.episode_steps[done].copy()
@@ -308,6 +337,22 @@ class VectorClimbRLEnv:
         self.prev_exec_action[:] = action
         self.prev_qd[:] = obs['qd']
 
+        # 必须在自动复位前保存本次转移指标，避免评估读取复位后的零速度/满磁力。
+        transition_metrics = {
+            'velocity': obs['base_vel'][:, 0].copy(),
+            'stance': self._phase_masks()[1].copy(),
+            'magnetic_force': obs['f_mag'].copy(),
+            'position': obs['base_pos'].copy(),
+            'physical_failure': physical_failure.copy(),
+        }
+        time_outs = (self.episode_steps >= self.max_episode_steps) & ~transition_metrics['physical_failure']
+        terminal_critic_obs = None
+        if np.any(time_outs):
+            raw = self._proprio_features(obs)
+            filtered = ((1.0 - self.cfg.obs_filter_alpha) * self.filtered_proprio
+                        + self.cfg.obs_filter_alpha * raw)
+            terminal_critic_obs = np.concatenate(
+                [filtered, self._privileged_features(obs)], axis=1).astype(np.float32)
         reset_mask = done.copy()
         if np.any(done):
             self._reset_indices(np.flatnonzero(done))
@@ -317,6 +362,9 @@ class VectorClimbRLEnv:
             'episode_lengths': completed_lengths,
             'reward_terms': self.last_reward_terms.copy(),
             'curriculum': self.curriculum_state,
+            'transition_metrics': transition_metrics,
+            'time_outs': time_outs,
+            'terminal_critic_obs': terminal_critic_obs,
         }
         return (self.proprio, self.critic_obs, self.privileged,
                 reward, done.astype(np.float32), info)

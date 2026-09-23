@@ -1,0 +1,17 @@
+{
+  "checkpoint": "D:\\codex\\marvel_repro\\stage4_rl\\checkpoints\\repair_pilot_seed0\\ppo_final.pt",
+  "sha256": "2a51eabfe3e870a1c97f36ce53770b6f1c66027974d8c25304ba32523747323c",
+  "episodes": 100,
+  "seed": 42,
+  "theta_deg": 90,
+  "prob_attach": 0.85,
+  "command": 0.15,
+  "oracle_contact": false,
+  "policy_mean_abs_max": 0.9912116527557373,
+  "policy_mean_saturation": 0.01488095238095238,
+  "mean_duration_s": 0.5600000000000003,
+  "mean_velocity_rmse": 0.8358960279552161,
+  "mean_retention": 0.03529411764705881,
+  "mean_displacement_m": -0.322712351039772,
+  "survival_rate": 0.0
+}

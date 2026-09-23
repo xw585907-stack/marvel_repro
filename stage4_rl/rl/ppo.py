@@ -19,6 +19,7 @@ class PPOConfig:
     entropy_coef: float = 0.01
     estimator_coef: float = 1.0
     max_grad_norm: float = 1.0
+    target_kl: float = 0.0
 
 
 class RolloutBuffer:
@@ -82,6 +83,7 @@ class PPOTrainer:
         self.device = torch.device(device)
         self.model = model.to(self.device)
         self.config = config or PPOConfig()
+        self.policy_transform_version = 0
         self.optimizer = torch.optim.Adam(
             self.model.parameters(), lr=self.config.learning_rate)
 
@@ -106,6 +108,12 @@ class PPOTrainer:
                     data['proprio'][idx], data['critic_obs'][idx],
                     data['raw_action'][idx])
                 ratio = (logp - data['old_log_prob'][idx]).exp()
+                # 非负的采样 KL 估计；更新过大时结束本轮，避免策略崩溃。
+                with torch.no_grad():
+                    sampled_kl = (ratio - 1.0 - (logp - data['old_log_prob'][idx])).mean()
+                if cfg.target_kl > 0 and sampled_kl.item() > 1.5 * cfg.target_kl:
+                    batches = max(totals.pop('batches'), 1)
+                    return {k: v / batches for k, v in totals.items()}
                 unclipped = ratio * data['advantage'][idx]
                 clipped = ratio.clamp(1.0 - cfg.clip_ratio,
                                       1.0 + cfg.clip_ratio) * data['advantage'][idx]
@@ -123,13 +131,11 @@ class PPOTrainer:
                 nn.utils.clip_grad_norm_(self.model.parameters(), cfg.max_grad_norm)
                 self.optimizer.step()
 
-                with torch.no_grad():
-                    approx_kl = (data['old_log_prob'][idx] - logp).mean()
-                totals['policy'] += float(policy_loss)
-                totals['value'] += float(value_loss)
-                totals['entropy'] += float(entropy_mean)
-                totals['estimator'] += float(estimator_loss)
-                totals['kl'] += float(approx_kl)
+                totals['policy'] += policy_loss.detach().item()
+                totals['value'] += value_loss.detach().item()
+                totals['entropy'] += entropy_mean.detach().item()
+                totals['estimator'] += estimator_loss.detach().item()
+                totals['kl'] += sampled_kl.item()
                 totals['batches'] += 1
 
         batches = max(totals.pop('batches'), 1)
@@ -144,13 +150,18 @@ class PPOTrainer:
             'optimizer': self.optimizer.state_dict(),
             'ppo_config': asdict(self.config),
             'extra': extra or {},
+            'bounded_policy': self.model.bounded_policy,
+            'policy_transform_version': 2 if self.model.bounded_policy else 0,
         }, path)
 
     def load(self, path, load_optimizer=True):
         data = torch.load(path, map_location=self.device, weights_only=False)
         self.model.load_state_dict(data['model'])
+        self.model.bounded_policy = data.get('bounded_policy', False)
+        self.policy_transform_version = data.get('policy_transform_version', 0)
         if load_optimizer and 'optimizer' in data:
             self.optimizer.load_state_dict(data['optimizer'])
+            self.config = PPOConfig(**data.get('ppo_config', {}))
         return int(data.get('iteration', 0)), data.get('extra', {})
 
 

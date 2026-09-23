@@ -135,7 +135,7 @@ class MPCController:
         J = foot_jac(snap['q'], self.env.l1, self.env.l2)      # (4,2,2) 体坐标
         R = np.array([[c, -s], [s, c]])
         J_w = np.einsum('ij,fjk->fik', R, J)
-        tau_legs = -np.einsum('fij,fj->fi', J_w, u)             # (4,2)
+        tau_legs = -np.einsum('fij,fi->fj', J_w, u)             # -J^T u, (4,2)
         torque_cmd = np.where(stance[:, None], tau_legs, 0.0).ravel()
 
         # 5) EPM 命令（5ms 提前量，见 GaitScheduler）

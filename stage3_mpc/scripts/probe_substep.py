@@ -38,7 +38,7 @@ def run_step(env, u_cmd, print_substeps=None, body_vx=0.0, body_omega=0.0):
     R = np.array([[c, -s], [s, c]])
     J = foot_jac(snap['q'], env.l1, env.l2)
     J_w = np.einsum('ij,fjk->fik', R, J)
-    tau_cmd = -np.einsum('fij,fj->fi', J_w, u_cmd).ravel()
+    tau_cmd = -np.einsum('fij,fi->fj', J_w, u_cmd).ravel()
     foot_start, _ = env._foot_state()
     target_v = (target_w[None] - foot_start) / env.control_dt
     p0, phi0 = env.p.copy(), env.phi.copy()

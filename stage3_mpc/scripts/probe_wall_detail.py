@@ -62,7 +62,7 @@ class ProbeEnv(ClimbEnv):
         R = np.stack([np.stack([c, s], -1), np.stack([-s, c], -1)], -1)
         J_w = np.einsum('nij,nfjk->nfik', R, J)
         self.rec[-1]['tau_load'] = np.einsum(
-            'nfij,nfj->nfi', J_w, self.F_env).reshape(N, 8)
+            'nfij,nfi->nfj', J_w, self.F_env).reshape(N, 8)
 
 
 def main():

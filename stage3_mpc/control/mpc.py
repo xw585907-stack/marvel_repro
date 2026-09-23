@@ -351,8 +351,8 @@ class SRB_MPC:
                 if jac is not None:
                     for j in (0, 1):
                         r5 = np.zeros(2 * len(stance))
-                        r5[idx] = jac[blk % 4, j, 0]
-                        r5[idx + 1] = jac[blk % 4, j, 1]
+                        r5[idx] = jac[blk % 4, 0, j]
+                        r5[idx + 1] = jac[blk % 4, 1, j]
                         r6 = -r5
                         G_rows += [r5, r6]
                         h_rows += [self.tau_max / SC] * 2

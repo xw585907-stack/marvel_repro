@@ -32,6 +32,7 @@ class ActorCriticEstimator(nn.Module):
         self.proprio_dim = int(proprio_dim)
         self.privileged_dim = int(privileged_dim)
         self.action_dim = int(action_dim)
+        self.bounded_policy = False
 
         self.estimator = _mlp(self.proprio_dim, [256, 128],
                               self.privileged_dim, out_gain=0.1)
@@ -50,6 +51,13 @@ class ActorCriticEstimator(nn.Module):
         std = self.log_std.clamp(-5.0, 1.0).exp().expand_as(mean)
         return Normal(mean, std), estimate
 
+    def _log_prob(self, dist, raw_action):
+        log_prob = dist.log_prob(raw_action)
+        if self.bounded_policy:
+            action = raw_action.tanh()
+            log_prob = log_prob - torch.log(1.0 - action.square() + 1e-6)
+        return log_prob.sum(-1)
+
     def value(self, critic_obs):
         return self.critic(critic_obs).squeeze(-1)
 
@@ -57,14 +65,18 @@ class ActorCriticEstimator(nn.Module):
     def act(self, proprio, critic_obs, deterministic=False):
         dist, estimate = self.distribution(proprio)
         raw_action = dist.mean if deterministic else dist.sample()
-        action = raw_action.clamp(-1.0, 1.0)
-        log_prob = dist.log_prob(raw_action).sum(-1)
+        action = raw_action.tanh() if self.bounded_policy else raw_action.clamp(-1.0, 1.0)
+        log_prob = self._log_prob(dist, raw_action)
         value = self.value(critic_obs)
         return action, raw_action, log_prob, value, estimate
 
     def evaluate_actions(self, proprio, critic_obs, raw_action):
         dist, estimate = self.distribution(proprio)
-        log_prob = dist.log_prob(raw_action).sum(-1)
-        entropy = dist.entropy().sum(-1)
+        log_prob = self._log_prob(dist, raw_action)
+        # Squashed Gaussian has no closed-form entropy. A current-policy
+        # reparameterized sample keeps the tanh correction differentiable,
+        # so the entropy bonus also pushes saturated means away from ±1.
+        entropy = (-self._log_prob(dist, dist.rsample()) if self.bounded_policy
+                   else dist.entropy().sum(-1))
         value = self.value(critic_obs)
         return log_prob, entropy, value, estimate

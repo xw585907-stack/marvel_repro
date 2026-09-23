@@ -65,7 +65,7 @@ def realize_step(env, u, snap):
     R = np.array([[c, -s], [s, c]])
     J = foot_jac(snap['q'], env.l1, env.l2)
     J_w = np.einsum('ij,fjk->fik', R, J)
-    tau = -np.einsum('fij,fj->fi', J_w, u).ravel()
+    tau = -np.einsum('fij,fi->fj', J_w, u).ravel()
     target_w = snap['foot_pos'][None, :, :]              # 钉在当前足端
     d = target_w[0] - snap['base_pos']
     rb = np.stack([c * d[:, 0] + s * d[:, 1],

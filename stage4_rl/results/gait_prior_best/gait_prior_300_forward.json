@@ -1,0 +1,21 @@
+{
+  "checkpoint": "D:\\codex\\marvel_repro\\stage4_rl\\checkpoints\\gait_prior_probe_seed0\\ppo_final.pt",
+  "sha256": "304d26b4e237dc5aadf059464129a7f7f0286134abd8209b26980382abbdc729",
+  "episodes": 100,
+  "seed": 42,
+  "theta_deg": 0.0,
+  "prob_attach": 1.0,
+  "command": 0.15,
+  "oracle_contact": false,
+  "stochastic_policy": false,
+  "gait_prior": true,
+  "curriculum_iteration": 0,
+  "adhesion_enabled": false,
+  "policy_mean_abs_max": 0.9381288886070251,
+  "policy_mean_saturation": 0.0,
+  "mean_duration_s": 10.0,
+  "mean_velocity_rmse": 0.0813584551888835,
+  "mean_retention": 0.0019986675549633582,
+  "mean_displacement_m": 1.2304130374990427,
+  "survival_rate": 1.0
+}

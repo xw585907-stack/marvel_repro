@@ -10,6 +10,7 @@ runs/
 logs/
 *.pt
 *.pth
+stage4_rl/checkpoints/*/
 
 # IDE
 .idea/

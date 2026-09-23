@@ -35,7 +35,8 @@ marvel_repro/
 # 已由搭建脚本完成；如重建：
 D:/anaconda/python.exe -m venv .venv
 .venv/Scripts/python.exe -m pip install -r requirements.txt
-# torch 仅阶段4（PPO）需要（本项目实测 torch 2.5.1+cpu 可用）
+# RTX 50 系 Windows（CUDA 13.2，支持 Blackwell）：
+.venv/Scripts/python.exe -m pip install -r requirements-cuda.txt
 ```
 
 ## 阶段进度
@@ -46,7 +47,7 @@ D:/anaconda/python.exe -m venv .venv
 | 1 | 静态分析复现（Fig.4F 可容许反力区域 / Fig.3 气隙力曲线） | 完成 |
 | 2 | 2D 物理内核（动力学/接触/EPM/向量化环境） | 完成 |
 | 3 | 论文1 MPC 控制器 | 完成（17/17 测试通过） |
-| 4 | 论文2 PPO 控制器 | 实现完成（10/10；正式训练待运行） |
+| 4 | 论文2 PPO 控制器 | 二维残差步态版本已完成 35000 次课程训练；85% 吸附下前进存活率：固定评估 86.2%、开启训练随机化与观测噪声后 68.6%（均为五种子、500 回合）；与论文原方法的差异见阶段报告 |
 | 5 | 对比与消融实验（论文2 Table II） | 待开始 |
 | 6 | 复现报告 | 待开始 |
 
@@ -74,7 +75,7 @@ D:/anaconda/python.exe -m venv .venv
 # 阶段4：PPO 接口测试、训练、评估与 Pygame 演示
 .venv/Scripts/python.exe stage4_rl/scripts/test_rl.py
 .venv/Scripts/python.exe stage4_rl/scripts/train_ppo.py --quick
-.venv/Scripts/python.exe stage4_rl/scripts/train_ppo.py
+.venv/Scripts/python.exe stage4_rl/scripts/train_ppo.py --device auto
 .venv/Scripts/python.exe stage4_rl/scripts/eval_rl.py --checkpoint stage4_rl/checkpoints/ppo_final.pt
 .venv/Scripts/python.exe stage4_rl/scripts/run_rl.py --checkpoint stage4_rl/checkpoints/ppo_final.pt
 ```
@@ -103,12 +104,16 @@ cd marvel_repro
 python -m venv .venv
 .venv/Scripts/python.exe -m pip install --upgrade pip
 .venv/Scripts/python.exe -m pip install -r requirements.txt
+# RTX 50 系 Windows：
+.venv/Scripts/python.exe -m pip install -r requirements-cuda.txt
 ```
 
-RTX 50 系显卡应从 [PyTorch 官方安装选择器](https://pytorch.org/get-started/locally/)
-安装与显卡驱动匹配的 CUDA 版 PyTorch，覆盖 `requirements.txt` 中用于当前电脑验证的
-`torch==2.5.1`。安装后先运行共享环境、阶段3和阶段4三组测试，再开始阶段4正式训练。
+RTX 50 系显卡使用 `requirements-cuda.txt` 安装 CUDA 13.2 版 PyTorch；其他显卡应从
+[PyTorch 官方安装选择器](https://pytorch.org/get-started/locally/) 选择匹配版本。
+`train_ppo.py` 默认使用 `--device auto`，检测到 CUDA 时自动调用显卡。安装后先运行共享环境、
+阶段3和阶段4三组测试，再开始阶段4正式训练。
 
-仓库随附的 `stage4_rl/checkpoints/*.pt` 是 `--quick` 产生的工程链路测试权重，
-仅用于确认加载、评估和渲染流程，不代表论文的正式训练结果。正式复现实验需要重新运行
-35000 次迭代训练。
+仓库根目录下早期的 `stage4_rl/checkpoints/*.pt` 是 `--quick` 产生的工程链路测试权重，
+仅用于确认加载、评估和渲染流程。关键正式训练权重与对应训练记录保存在命名子目录；
+最佳二维工程适配模型为 `stage4_rl/checkpoints/gait_prior_low_lr_from33000_seed0/ppo_final.pt`。
+训练过程、五种子评估原始数据及严格复现限制见[阶段四报告](stage4_rl/docs/stage_report_4.md)。

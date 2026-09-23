@@ -1,0 +1,15 @@
+{
+  "checkpoint": "D:\\codex\\marvel_repro\\stage4_rl\\checkpoints\\formal_seed0\\ppo_iter_20000.pt",
+  "sha256": "b9e4bdec82b01b29d8e60823d8290c183f06ce0209116592d5c03904488bbfc1",
+  "episodes": 100,
+  "seed": 42,
+  "theta_deg": 84.6,
+  "prob_attach": 1.0,
+  "command": 0.15,
+  "oracle_contact": false,
+  "mean_duration_s": 0.4200000000000001,
+  "mean_velocity_rmse": 1.0619199229817222,
+  "mean_retention": 0.125,
+  "mean_displacement_m": -0.31565981134313026,
+  "survival_rate": 0.0
+}

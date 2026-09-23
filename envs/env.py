@@ -353,7 +353,8 @@ class ClimbEnv:
         c, s = np.cos(self.phi), np.sin(self.phi)
         R = np.stack([np.stack([c, s], -1), np.stack([-s, c], -1)], -1)
         J_w = np.einsum('nij,nfjk->nfik', R, J)         # 世界系雅可比
-        tau_load = np.einsum('nfij,nfj->nfi', J_w, self.F_env)  # (N,4,2)
+        # J 的行是世界坐标、列是关节：tau = J^T F，满足 tau·qd = F·(J qd)。
+        tau_load = np.einsum('nfij,nfi->nfj', J_w, self.F_env)  # (N,4,2)
         tau_load = tau_load.reshape(N, NUM_JOINTS)
 
         # 2D 矢状面投影：同髋两腿（0/2、1/3）是同一自由度的两个副本。

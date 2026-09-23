@@ -91,7 +91,9 @@ def test_attach_probability():
     attached = np.zeros(4)
     for _ in range(200):
         env.reset()
-        env.step(np.zeros((1, 8)), np.ones((1, 4)), q_des)
+        # Count the first landing, before detach/retry and survival can select outcomes.
+        env._substep(np.zeros((1, 8)), np.ones((1, 4)), q_des,
+                     np.array([[-9.81, 0.0]]))
         s = env.snapshot()
         landed += s['contact'].astype(int)
         attached += s['attach_ok'].astype(int)
