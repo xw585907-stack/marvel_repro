@@ -11,6 +11,7 @@ logs/
 *.pt
 *.pth
 stage4_rl/checkpoints/*/
+stage5/checkpoints/*/
 
 # IDE
 .idea/
