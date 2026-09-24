@@ -6,12 +6,12 @@
 
 训练过程和检查点保存在 `checkpoints/full_seed0/`。该目录默认不纳入 Git；验收后只选择报告所需的最终权重与结果上传。正式结果和评估协议将在本目录补充。
 
-## 当前进度
+## Full 组训练记录
 
-Full 组于 2026-09-24 09:47（北京时间）在 RTX 5070 Ti 上启动。30 轮同配置测速用时 32.7 秒；完整训练预计约 11–13 小时，运行期间可用下列命令查看最新迭代、阶段、吸附概率和预计剩余时间：
+Full 组于 2026-09-24 09:47（北京时间）在 RTX 5070 Ti 上启动。30 轮同配置测速用时 32.7 秒；完整训练实际用了约 9 小时 46 分钟。可用下列命令查看迭代、阶段和吸附概率的历史记录：
 
 ```powershell
-Get-Content stage5/checkpoints/full_seed0/training.log -Tail 10 -Wait
+Get-Content stage5/checkpoints/full_seed0/training.log -Tail 10
 ```
 
-错误输出保存在 `checkpoints/full_seed0/training.err`。每 500 轮保存检查点；`ppo_final.pt` 只有完成第 35,000 轮后才会出现。训练回报不等于爬墙成功率，需待训练完成后按共同评估协议复测。
+错误输出保存在 `checkpoints/full_seed0/training.err`。每 500 轮保存一个检查点，最终权重已生成。训练回报不等于爬墙成功率；实际评估结果见 [第一次验收报告](report_full_seed0.md)。

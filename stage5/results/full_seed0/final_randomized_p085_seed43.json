@@ -1,0 +1,22 @@
+{
+  "checkpoint": "stage5/checkpoints/full_seed0/ppo_final.pt",
+  "sha256": "62459b2d4dbf0bdc9b0aba600e69574debde46dd21c1951eab4956be08a46c54",
+  "episodes": 100,
+  "seed": 43,
+  "theta_deg": 90.0,
+  "prob_attach": 0.85,
+  "command": 0.15,
+  "oracle_contact": false,
+  "stochastic_policy": false,
+  "gait_prior": true,
+  "randomized": true,
+  "curriculum_iteration": 35000,
+  "adhesion_enabled": true,
+  "policy_mean_abs_max": 0.9608780741691589,
+  "policy_mean_saturation": 0.0,
+  "mean_duration_s": 6.2863999999999995,
+  "mean_velocity_rmse": 0.31402506794200763,
+  "mean_retention": 0.8288316027116704,
+  "mean_displacement_m": 0.6547363624283525,
+  "survival_rate": 0.29
+}
